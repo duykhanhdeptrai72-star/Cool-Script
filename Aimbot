@@ -1,1 +1,212 @@
-print("hi")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Cấu hình Keybinds
+local AIM_KEY = Enum.UserInputType.MouseButton2
+local ESP_KEY = Enum.KeyCode.E
+local WALL_CHECK_KEY = Enum.KeyCode.L
+local SPEED_UP_KEY = Enum.KeyCode.M
+local SPEED_DOWN_KEY = Enum.KeyCode.N
+local GUI_KEY = Enum.KeyCode.B
+local FOV_TOGGLE_KEY = Enum.KeyCode.KeypadOne
+local INVIS_CHECK_KEY = Enum.KeyCode.KeypadTwo
+local FLY_TOP_TOGGLE_KEY = Enum.KeyCode.KeypadThree
+local AVOID_TOGGLE_KEY = Enum.KeyCode.KeypadFour -- PHÍM MỚI
+
+-- Thông số
+local FOV_RADIUS = 300 
+local MAX_ESP_DISTANCE = 1000
+local FLY_HEIGHT = 15
+local FLY_SPEED = 75
+local AVOID_RANGE = 20 -- Phạm vi tránh né (20 studs)
+local AVOID_STRENGTH = 2 -- Độ mạnh của lực đẩy
+
+local TEAM_CHECK = false
+local ESP_ENABLED = false
+local WALL_CHECK_ENABLED = true
+local FOV_ENABLED = true
+local INVIS_CHECK_ENABLED = true
+local FLY_TOP_ENABLED = false
+local AVOID_ENABLED = false -- Trạng thái tránh người
+local CFRAME_SPEED = 0 
+
+-- Vẽ FOV
+local FOV_Circle = Drawing.new("Circle")
+FOV_Circle.Thickness = 1
+FOV_Circle.Color = Color3.fromRGB(255, 255, 0)
+FOV_Circle.Transparency = 0.7
+FOV_Circle.Visible = FOV_ENABLED
+FOV_Circle.Radius = FOV_RADIUS
+
+-- Giao diện GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GeminiUltimate"
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Enabled = false
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.02, 0, 0.25, 0)
+MainFrame.Size = UDim2.new(0, 200, 0, 375)
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local Container = Instance.new("Frame")
+Container.Parent = MainFrame
+Container.BackgroundTransparency = 1
+Container.Position = UDim2.new(0, 10, 0, 45)
+Container.Size = UDim2.new(1, -20, 1, -55)
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Container
+UIList.Padding = UDim.new(0, 8)
+
+local function CreateBindLabel(text)
+    local lbl = Instance.new("TextLabel")
+    lbl.Parent = Container
+    lbl.Size = UDim2.new(1, 0, 0, 25)
+    lbl.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    lbl.Text = "  " .. text
+    lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = lbl
+    return lbl
+end
+
+local l_avoid = CreateBindLabel("Num4 - Avoid (20s): OFF")
+local l_fly = CreateBindLabel("Num3 - Fly Above: OFF")
+local l_invis = CreateBindLabel("Num2 - AntiInvis: ON")
+local l_fov = CreateBindLabel("Num1 - Aim/FOV: ON")
+local l_esp = CreateBindLabel("E - ESP: OFF")
+local l_wall = CreateBindLabel("L - WallCheck: ON")
+local l_team = CreateBindLabel("P - TeamCheck: OFF")
+local l_speed = CreateBindLabel("M/N - Speed: 0")
+
+local function UpdateGUI()
+    l_avoid.Text = "  Num4 - Avoid: " .. (AVOID_ENABLED and "ON" or "OFF")
+    l_avoid.TextColor3 = AVOID_ENABLED and Color3.new(1, 0.4, 0.4) or Color3.new(1, 1, 1)
+    l_fly.Text = "  Num3 - Fly Above: " .. (FLY_TOP_ENABLED and "ON" or "OFF")
+    l_fly.TextColor3 = FLY_TOP_ENABLED and Color3.new(0, 1, 1) or Color3.new(1, 1, 1)
+    l_fov.Text = "  Num1 - Aim/FOV: " .. (FOV_ENABLED and "ON" or "OFF")
+    l_fov.TextColor3 = FOV_ENABLED and Color3.new(1, 1, 0) or Color3.new(1, 0, 0)
+    l_team.Text = "  P - TeamCheck: " .. (TEAM_CHECK and "ON" or "OFF")
+    l_speed.Text = "  M/N - Speed: " .. math.floor(CFRAME_SPEED * 60)
+end
+
+-- Logic kiểm tra người chơi
+local function IsInvis(player)
+    if not player.Character then return false end
+    for _, part in pairs(player.Character:GetChildren()) do
+        if part:IsA("BasePart") and part.Transparency > 0.5 then return true end
+    end
+    return false
+end
+
+local function getClosest()
+    if not FOV_ENABLED then return nil end
+    local target, invisTarget, dist, invisDist = nil, nil, FOV_RADIUS, FOV_RADIUS
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if TEAM_CHECK and p.Team == LocalPlayer.Team then continue end
+            local hrp = p.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                if mag < FOV_RADIUS then
+                    if INVIS_CHECK_ENABLED and IsInvis(p) then
+                        if mag < invisDist then invisTarget = hrp; invisDist = mag end
+                    elseif mag < dist then
+                        target = hrp; dist = mag
+                    end
+                end
+            end
+        end
+    end
+    return invisTarget or target
+end
+
+-- Bắt sự kiện bàn phím
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == AVOID_TOGGLE_KEY then
+        AVOID_ENABLED = not AVOID_ENABLED
+    elseif input.KeyCode == FLY_TOP_TOGGLE_KEY then
+        FLY_TOP_ENABLED = not FLY_TOP_ENABLED
+    elseif input.KeyCode == FOV_TOGGLE_KEY then
+        FOV_ENABLED = not FOV_ENABLED; FOV_Circle.Visible = FOV_ENABLED
+    elseif input.KeyCode == INVIS_CHECK_KEY then
+        INVIS_CHECK_ENABLED = not INVIS_CHECK_ENABLED
+    elseif input.KeyCode == SPEED_UP_KEY then
+        CFRAME_SPEED = CFRAME_SPEED + (10/60)
+    elseif input.KeyCode == SPEED_DOWN_KEY then
+        CFRAME_SPEED = math.max(0, CFRAME_SPEED - (10/60))
+    elseif input.KeyCode == GUI_KEY then
+        ScreenGui.Enabled = not ScreenGui.Enabled
+    elseif input.KeyCode == Enum.KeyCode.P then
+        TEAM_CHECK = not TEAM_CHECK; FOV_Circle.Color = TEAM_CHECK and Color3.new(0,1,0) or Color3.new(1,1,0)
+    end
+    UpdateGUI()
+end)
+
+-- Vòng lặp chính
+RunService.RenderStepped:Connect(function(deltaTime)
+    if FOV_ENABLED then FOV_Circle.Position = UserInputService:GetMouseLocation() end
+    
+    local myChar = LocalPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    
+    if myHRP then
+        -- 1. CFRAME SPEED
+        local hum = myChar:FindFirstChildOfClass("Humanoid")
+        if hum and hum.MoveDirection.Magnitude > 0 then
+            myHRP.CFrame = myHRP.CFrame + (hum.MoveDirection * CFRAME_SPEED)
+        end
+
+        -- 2. FLY ABOVE (75 studs/s)
+        if FLY_TOP_ENABLED then
+            local t = getClosest()
+            if t then
+                local goal = t.Position + Vector3.new(0, FLY_HEIGHT, 0)
+                local dir = (goal - myHRP.Position)
+                if dir.Magnitude > 0.5 then
+                    myHRP.CFrame = CFrame.new(myHRP.Position + dir.Unit * math.min(dir.Magnitude, FLY_SPEED * deltaTime), t.Position)
+                end
+            end
+        end
+
+        -- 3. AVOID PEOPLE (Keypad 4)
+        if AVOID_ENABLED then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    -- Ally Check: Nếu TEAM_CHECK bật, bỏ qua đồng đội
+                    if TEAM_CHECK and p.Team == LocalPlayer.Team then continue end
+                    
+                    local otherHRP = p.Character.HumanoidRootPart
+                    local dist = (myHRP.Position - otherHRP.Position).Magnitude
+                    
+                    if dist < AVOID_RANGE then
+                        -- Tính toán hướng đẩy ra xa
+                        local pushDir = (myHRP.Position - otherHRP.Position).Unit
+                        myHRP.CFrame = myHRP.CFrame + (pushDir * AVOID_STRENGTH)
+                    end
+                end
+            end
+        end
+    end
+
+    -- 4. AIMBOT
+    if FOV_ENABLED and UserInputService:IsMouseButtonPressed(AIM_KEY) then
+        local t = getClosest()
+        if t then Camera.CFrame = CFrame.new(Camera.CFrame.Position, t.Position) end
+    end
+end)
