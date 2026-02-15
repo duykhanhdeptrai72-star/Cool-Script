@@ -22,8 +22,8 @@ local FOV_RADIUS = 300
 local MAX_ESP_DISTANCE = 1000
 local FLY_HEIGHT = 15
 local FLY_SPEED = 75
-local AVOID_RANGE = 20 
-local AVOID_STRENGTH = 2 
+local AVOID_RANGE = 85
+local AVOID_STRENGTH = 10 
 local AIM_TARGET_PART = "Head" -- Mặc định nhắm vào đầu
 
 local TEAM_CHECK = false
