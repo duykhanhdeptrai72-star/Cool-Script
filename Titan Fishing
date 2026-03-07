@@ -101,4 +101,71 @@ if isMobile then
         return btn
     end
 
-    local toggleBtn = createMobileBtn("E", UDim2.new(0.85, -70, 0.4, 0), Color3
+    local toggleBtn = createMobileBtn("E", UDim2.new(0.85, -70, 0.4, 0), Color3.fromRGB(0, 255, 150))
+    local posBtn = createMobileBtn("POS", UDim2.new(0.85, -70, 0.55, 0), Color3.fromRGB(200, 200, 200))
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        statusLabel.Text = enabled and "TRẠNG THÁI: BẬT" or "TRẠNG THÁI: TẮT"
+        statusLabel.TextColor3 = enabled and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 80, 80)
+        toggleBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(0, 255, 150)
+    end)
+
+    posBtn.MouseButton1Click:Connect(function()
+        posBtn.Text = "TAP"
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                customClickPos = Vector2.new(input.Position.X, input.Position.Y)
+                posBtn.Text = "OK"
+                task.wait(0.5)
+                posBtn.Text = "POS"
+                conn:Disconnect()
+            end
+        end)
+    end)
+end
+
+-- Vòng lặp tối ưu hóa (Không ảnh hưởng FPS)
+task.spawn(function()
+    while true do
+        if enabled then
+            local targetX, targetY = mouse.X, mouse.Y
+            if customClickPos then targetX, targetY = customClickPos.X, customClickPos.Y end
+            
+            -- Click theo Batch (Nhịp) để giảm tải CPU
+            for i = 1, clicksPerCycle do
+                VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+            end
+            
+            -- Skill ZXC (Xử lý thông minh không gây loạn)
+            local now = tick()
+            if now - lastSkillUse >= skillCooldown then
+                lastSkillUse = now
+                task.spawn(function()
+                    for _, k in ipairs({Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C}) do
+                        VirtualInputManager:SendKeyEvent(true, k, false, game)
+                        VirtualInputManager:SendKeyEvent(false, k, false, game)
+                    end
+                end)
+            end
+            task.wait(cycleDelay) -- Khoảng nghỉ vàng để giữ FPS ổn định
+        else
+            task.wait(0.5) -- Nghỉ ngơi khi tắt để tiết kiệm tài nguyên
+        end
+    end
+end)
+
+-- PC Toggle phím E
+UserInputService.InputBegan:Connect(function(i, p)
+    if p then return end
+    if i.KeyCode == Enum.KeyCode.E then
+        enabled = not enabled
+        statusLabel.Text = enabled and "TRẠNG THÁI: BẬT" or "TRẠNG THÁI: TẮT"
+        statusLabel.TextColor3 = enabled and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 80, 80)
+    end
+end)
+
+print("Script Optimized for FPS!")
+print("Creator: Hưng/ Bôn =))")
