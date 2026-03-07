@@ -1,0 +1,104 @@
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- Cấu hình mặc định (Tối ưu cho FPS)
+local enabled = false
+local clicksPerCycle = 5 -- Số lần click mỗi nhịp (tăng cái này nếu muốn nhanh hơn)
+local cycleDelay = 0.01  -- Thời gian nghỉ giữa các nhịp (tăng cái này để bớt lag)
+local skillCooldown = 0.5
+local lastSkillUse = 0
+local customClickPos = nil
+local isMobile = UserInputService.TouchEnabled
+
+-- Giao diện Stats (Luôn hiện, thiết kế hiện đại)
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "HungBon_Smooth_Hub"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 220, 0, 180)
+mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BorderSizePixel = 0
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+
+local uiStroke = Instance.new("UIStroke", mainFrame)
+uiStroke.Color = Color3.fromRGB(0, 200, 255)
+uiStroke.Thickness = 2
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 35)
+title.Text = "Hưng/ Bôn =)) Smooth"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.BackgroundTransparency = 1
+title.TextSize = 15
+
+local function createSetting(name, default, yPos, key)
+    local label = Instance.new("TextLabel", mainFrame)
+    label.Size = UDim2.new(0.6, 0, 0, 30)
+    label.Position = UDim2.new(0.05, 0, 0, yPos)
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 12
+
+    local box = Instance.new("TextBox", mainFrame)
+    box.Size = UDim2.new(0, 60, 0, 22)
+    box.Position = UDim2.new(0.65, 0, 0, yPos + 4)
+    box.Text = tostring(default)
+    box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    box.TextColor3 = Color3.fromRGB(0, 255, 255)
+    box.Font = Enum.Font.Code
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+    
+    box.FocusLost:Connect(function()
+        local val = tonumber(box.Text)
+        if val then
+            if key == "speed" then clicksPerCycle = val
+            elseif key == "wait" then cycleDelay = val
+            elseif key == "skill" then skillCooldown = val end
+        end
+    end)
+end
+
+createSetting("Số Click/Nhịp:", clicksPerCycle, 40, "speed")
+createSetting("Độ trễ nhịp (s):", cycleDelay, 75, "wait")
+createSetting("Hồi chiêu ZXC:", skillCooldown, 110, "skill")
+
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+statusLabel.Position = UDim2.new(0.05, 0, 0, 145)
+statusLabel.Text = "TRẠNG THÁI: TẮT"
+statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 5)
+
+-- Nút Mobile (Cực đẹp, Chữ Đen rõ nét)
+if isMobile then
+    local function createMobileBtn(text, pos, color)
+        local btn = Instance.new("TextButton", screenGui)
+        btn.Size = UDim2.new(0, 65, 0, 65)
+        btn.Position = pos
+        btn.Text = text
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        btn.BackgroundColor3 = color
+        
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+        local st = Instance.new("UIStroke", btn)
+        st.Thickness = 3
+        st.Color = Color3.new(1, 1, 1)
+        
+        return btn
+    end
+
+    local toggleBtn = createMobileBtn("E", UDim2.new(0.85, -70, 0.4, 0), Color3
