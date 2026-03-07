@@ -1,108 +1,142 @@
 -- Creator: Hưng/ Bôn =))
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
-
 local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Cấu hình
 local enabled = false
-local delays = {Z = 0.5, X = 0.5, C = 0.5}
+local comboDelay = 0.25 -- Thời gian nghỉ giữa các chiêu
+local holdTime = 0.2  -- Thời gian giữ phím (Tăng lên để Mobile nhận diện tốt hơn)
 
--- 1. TÍNH NĂNG ANTI-AFK (Bảo vệ mọi loại game)
+-- 1. ANTI-AFK & ANTI-KICK (Bảo vệ hệ thống)
 player.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new(0,0))
-    print("Anti-AFK: Đã ngăn chặn việc bị Kick!")
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
 end)
 
--- 2. GIAO DIỆN ĐIỀU KHIỂN
-local screenGui = Instance.new("ScreenGui", player.PlayerGui)
-screenGui.Name = "HungBon_Supreme_Protect"
-screenGui.ResetOnSpawn = false
-
-local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Size = UDim2.new(0, 200, 0, 180)
-mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
-
-local uiStroke = Instance.new("UIStroke", mainFrame)
-uiStroke.Color = Color3.fromRGB(0, 255, 150)
-uiStroke.Thickness = 2
-
-local function createBox(key, y)
-    local box = Instance.new("TextBox", mainFrame)
-    box.Size = UDim2.new(0.8, 0, 0, 25)
-    box.Position = UDim2.new(0.1, 0, 0, y)
-    box.Text = key .. " Delay: " .. delays[key]
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    box.TextColor3 = Color3.new(1, 1, 1)
-    Instance.new("UICorner", box)
-    box.FocusLost:Connect(function()
-        local v = tonumber(box.Text:match("%d+%.?%d*"))
-        if v then delays[key] = v box.Text = key .. " Delay: " .. v end
-    end)
-end
-
-createBox("Z", 30)
-createBox("X", 60)
-createBox("C", 90)
-
--- 3. NÚT TOGGLE SIÊU CẤP (DÀNH CHO MOBILE)
-local toggleBtn = Instance.new("TextButton", screenGui)
-toggleBtn.Size = UDim2.new(0, 70, 0, 70)
-toggleBtn.Position = UDim2.new(0.8, 0, 0.4, 0)
-toggleBtn.Text = "RUN"
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.TextColor3 = Color3.new(0,0,0)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
-
--- 4. LOGIC SPAM CHIÊU (CƠ CHẾ MỚI ĐỂ ĐIỆN THOẠI NHẬN)
-local function startSpamming()
-    for _, k in pairs({"Z", "X", "C"}) do
-        task.spawn(function()
-            while enabled do
-                -- Sử dụng tổ hợp các cách để đảm bảo Executor trên Mobile nhận lệnh
-                if keypress then keypress(Enum.KeyCode[k]) end
-                game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode[k], false, game)
-                task.wait(0.05)
-                if keyrelease then keyrelease(Enum.KeyCode[k]) end
-                game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode[k], false, game)
-                
-                task.wait(delays[k])
-            end
-        end)
-    end
-end
-
-toggleBtn.MouseButton1Click:Connect(function()
-    enabled = not enabled
-    toggleBtn.Text = enabled and "STOP" or "RUN"
-    toggleBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 255, 150)
-    if enabled then startSpamming() end
-end)
-
--- PC Support
-UserInputService.InputBegan:Connect(function(i, p)
-    if not p and i.KeyCode == Enum.KeyCode.E then
-        enabled = not enabled
-        if enabled then startSpamming() end
-    end
-end)
-
--- ANTI-BAN/KICK GIAI ĐOẠN ĐẦU (ẨN SCRIPT)
 local mt = getrawmetatable(game)
-local old = mt.__namecall
 setreadonly(mt, false)
+local old = mt.__namecall
 mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    if method == "Kick" or method == "kick" then
-        warn("Script đã chặn nỗ lực Kick từ Game!")
-        return nil
-    end
+    if getnamecallmethod() == "Kick" then return nil end
     return old(self, ...)
 end)
 setreadonly(mt, true)
 
-print("Hưng/ Bôn =)) - Bảo vệ tối đa đã kích hoạt!")
+-- 2. GIAO DIỆN (STATS LUÔN HIỆN)
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+screenGui.Name = "HungBon_Sequence_Fix"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 200, 0, 150)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+mainFrame.BackgroundTransparency = 0.2
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local uiStroke = Instance.new("UIStroke", mainFrame)
+uiStroke.Color = Color3.fromRGB(255, 0, 255) -- Màu tím neon cực đẹp
+uiStroke.Thickness = 2
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 35)
+title.Text = "Hưng/ Bôn =)) COMBO"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.BackgroundTransparency = 1
+title.TextSize = 15
+
+local statLabel = Instance.new("TextLabel", mainFrame)
+statLabel.Size = UDim2.new(0.9, 0, 0, 80)
+statLabel.Position = UDim2.new(0.05, 0, 0, 40)
+statLabel.Text = "Thứ tự: Z -> X -> C\nAuto Click: GIỮA MÀN\nAnti-AFK: BẬT"
+statLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statLabel.BackgroundTransparency = 1
+statLabel.Font = Enum.Font.GothamMedium
+statLabel.TextSize = 13
+statLabel.TextWrapped = true
+
+-- 3. HAI NÚT MOBILE TRÒN SIÊU ĐẸP
+local function createCircleBtn(text, pos, color)
+    local btn = Instance.new("TextButton", screenGui)
+    btn.Size = UDim2.new(0, 75, 0, 75)
+    btn.Position = pos
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 18
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.BackgroundColor3 = color
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    
+    local st = Instance.new("UIStroke", btn)
+    st.Thickness = 3
+    st.Color = Color3.new(1, 1, 1)
+    
+    return btn
+end
+
+local toggleBtn = createCircleBtn("RUN", UDim2.new(0.85, -75, 0.4, 0), Color3.fromRGB(0, 255, 150))
+local infoBtn = createCircleBtn("FIX", UDim2.new(0.85, -75, 0.55, 0), Color3.fromRGB(255, 200, 0))
+
+-- 4. HÀM NHẤN PHÍM CƠ CHẾ HOLD (ĐỂ KHÔNG BỊ NUỐT CHIÊU)
+local function press(key)
+    -- Thử cả hai phương thức để đảm bảo mobile nhận diện
+    if keypress then keypress(Enum.KeyCode[key]) end
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[key], false, game)
+    
+    task.wait(holdTime) -- Giữ ph_ím đủ lâu để game nhận
+    
+    if keyrelease then keyrelease(Enum.KeyCode[key]) end
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[key], false, game)
+end
+
+-- 5. VÒNG LẶP CHÍNH (THEO THỨ TỰ)
+task.spawn(function()
+    while true do
+        if enabled then
+            -- A. Auto Click ở giữa màn hình
+            local midX = camera.ViewportSize.X / 2
+            local midY = camera.ViewportSize.Y / 2
+            for i = 1, 3 do
+                VirtualInputManager:SendMouseButtonEvent(midX, midY, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(midX, midY, 0, false, game, 1)
+            end
+
+            -- B. Combo theo thứ tự Z -> X -> C
+            press("Z")
+            task.wait(comboDelay)
+            
+            press("X")
+            task.wait(comboDelay)
+            
+            press("C")
+            task.wait(comboDelay)
+        end
+        RunService.Heartbeat:Wait()
+    end
+end)
+
+-- Sự kiện Toggle
+local function toggle()
+    enabled = not enabled
+    toggleBtn.Text = enabled and "STOP" or "RUN"
+    toggleBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 255, 150)
+end
+
+toggleBtn.MouseButton1Click:Connect(toggle)
+infoBtn.MouseButton1Click:Connect(function()
+    print("Script đang hoạt động mượt mà - Hưng/ Bôn =))")
+end)
+
+-- PC Toggle phím E
+UserInputService.InputBegan:Connect(function(i, p)
+    if not p and i.KeyCode == Enum.KeyCode.E then toggle() end
+end)
+
+print("Hưng/ Bôn =)) - Combo Sequence Loaded!")
+
