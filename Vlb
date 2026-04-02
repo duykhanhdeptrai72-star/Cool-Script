@@ -1,6 +1,5 @@
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
@@ -8,21 +7,20 @@ local camera = workspace.CurrentCamera
 local targetJumpForce = 65 
 local targetSpeedMult = 0.15 
 local magnetRange = 25 
-local customBallPath = "Workspace.Ball.BallPart"
+local customBallPath = "Workspace.Ball.BallPart" -- Path mặc định, có thể đổi trong Menu
 local hasDoubleJumped = false
-local stopMomentumActive = false
 local connections = {}
 
--- --- GIAO DIỆN (GUI) ---
+-- --- GIAO DIỆN CHÍNH (GUI) ---
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Volleyball_Universe_V18"
-screenGui.ResetOnSpawn = false
+screenGui.Name = "Volleyball_MobileOptimized_V19"
+screenGui.ResetOnSpawn = false -- Chết không mất Menu
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 220)
+mainFrame.Size = UDim2.new(0, 200, 0, 250)
 mainFrame.Position = UDim2.new(0, 15, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 mainFrame.BackgroundTransparency = 0.4
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame)
@@ -33,7 +31,7 @@ local function createLabel(text, pos, color)
     lbl.Position = pos
     lbl.BackgroundTransparency = 1
     lbl.TextColor3 = color or Color3.new(1,1,1)
-    lbl.TextSize = 12
+    lbl.TextSize = 13
     lbl.Font = Enum.Font.GothamBold
     lbl.Text = text
     lbl.Parent = mainFrame
@@ -44,12 +42,13 @@ local jumpLabel = createLabel("Lực nhảy: " .. targetJumpForce, UDim2.new(0, 
 local speedLabel = createLabel("Tốc độ: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40))
 local magnetLabel = createLabel("Hitbox: " .. magnetRange, UDim2.new(0, 10, 0, 70), Color3.fromRGB(150, 200, 255))
 local heightLabel = createLabel("Độ cao: 0 Studs", UDim2.new(0, 10, 0, 100), Color3.fromRGB(0, 255, 150))
+createLabel("Tự động STOP khi đi lùi", UDim2.new(0, 10, 0, 130), Color3.fromRGB(255, 255, 100)).TextSize = 11
 
--- Ô nhập Path (Quan trọng cho Universe)
+-- Ô nhập Path
 local pathBox = Instance.new("TextBox")
 pathBox.Size = UDim2.new(1, -20, 0, 35)
-pathBox.Position = UDim2.new(0, 10, 0, 135)
-pathBox.PlaceholderText = "Nhập Path (Dùng Dex)..."
+pathBox.Position = UDim2.new(0, 10, 0, 160)
+pathBox.PlaceholderText = "Dán Path bóng..."
 pathBox.Text = customBallPath
 pathBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 pathBox.TextColor3 = Color3.new(1,1,1)
@@ -61,28 +60,112 @@ pathBox.FocusLost:Connect(function(enter)
     if enter then customBallPath = pathBox.Text end
 end)
 
--- --- MOBILE ACTION BUTTONS ---
-local function handleMobileAction(name, state)
-    if state == Enum.UserInputState.Begin then
-        if name == "StopMomentum" then
-            stopMomentumActive = not stopMomentumActive
-        elseif name == "ClearWalls" then
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("BasePart") and v.Transparency >= 0.9 and v.CanCollide then v.CanCollide = false end
-            end
-        end
+-- Nút Ẩn Menu
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 40, 0, 20)
+toggleBtn.Position = UDim2.new(1, -45, 0, 5)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+toggleBtn.Text = "Hide"
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.TextSize = 10
+toggleBtn.Parent = mainFrame
+Instance.new("UICorner", toggleBtn)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    if mainFrame.Visible then
+        mainFrame.Visible = false
+        toggleBtn.Text = "Show"
+        toggleBtn.Parent = screenGui -- Đưa nút ra ngoài để vẫn thấy
+        toggleBtn.Position = UDim2.new(0, 15, 0.2, 0)
+    else
+        mainFrame.Visible = true
+        toggleBtn.Text = "Hide"
+        toggleBtn.Parent = mainFrame
+        toggleBtn.Position = UDim2.new(1, -45, 0, 5)
     end
+end)
+
+-- --- MOBILE BUTTONS (SẮP XẾP SÁT NHAU KIỂU BLOX FRUIT) ---
+local mobileBtnContainer = Instance.new("Frame")
+mobileBtnContainer.Size = UDim2.new(0, 130, 0, 130)
+mobileBtnContainer.Position = UDim2.new(1, -140, 0.4, 0) -- Góc dưới bên phải
+mobileBtnContainer.BackgroundTransparency = 1
+mobileBtnContainer.Parent = screenGui
+
+local function createMobileBtn(text, pos, color, func)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 60, 0, 35)
+    btn.Position = pos
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Parent = mobileBtnContainer
+    Instance.new("UICorner", btn)
+    
+    local connections = {}
+    connections.click = btn.MouseButton1Click:Connect(func)
+    
+    -- Xử lý giữ nút cho Tăng/Giảm
+    connections.down = btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local holding = true
+            local upConn; upConn = btn.InputEnded:Connect(function(input2)
+                if input2.UserInputType == Enum.UserInputType.MouseButton1 or input2.UserInputType == Enum.UserInputType.Touch then
+                    holding = false
+                    upConn:Disconnect()
+                end
+            end)
+            task.spawn(function()
+                task.wait(0.5) -- Chờ trước khi bắt đầu lặp
+                while holding do
+                    func()
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end)
+    return btn
 end
 
-ContextActionService:BindAction("StopMomentum", handleMobileAction, true, Enum.KeyCode.S)
-ContextActionService:SetTitle("StopMomentum", "STOP")
-ContextActionService:SetPosition("StopMomentum", UDim2.new(0.5, 70, 0, -70))
+-- Sắp xếp các nút (Grid 2x3)
+createMobileBtn("SPD +", UDim2.new(0,0,0,0), Color3.fromRGB(50, 200, 50), function()
+    targetSpeedMult = targetSpeedMult + 0.02
+    speedLabel.Text = "Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+end)
+createMobileBtn("SPD -", UDim2.new(0,65,0,0), Color3.fromRGB(200, 50, 50), function()
+    targetSpeedMult = math.max(0, targetSpeedMult - 0.02)
+    speedLabel.Text = "Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+end)
 
-ContextActionService:BindAction("ClearWalls", handleMobileAction, true, Enum.KeyCode.L)
-ContextActionService:SetTitle("ClearWalls", "WALL")
-ContextActionService:SetPosition("ClearWalls", UDim2.new(0.5, 70, 0, -140))
+createMobileBtn("JMP +", UDim2.new(0,0,0,40), Color3.fromRGB(50, 200, 50), function()
+    targetJumpForce = targetJumpForce + 2
+    jumpLabel.Text = "Lực nhảy: " .. targetJumpForce
+end)
+createMobileBtn("JMP -", UDim2.new(0,65,0,40), Color3.fromRGB(200, 50, 50), function()
+    targetJumpForce = math.max(0, targetJumpForce - 2)
+    jumpLabel.Text = "Lực nhảy: " .. targetJumpForce
+end)
 
--- --- LOGIC XỬ LÝ QUẢ BÓNG ---
+createMobileBtn("WALL", UDim2.new(0,0,0,80), Color3.fromRGB(50, 150, 255), function()
+    local count = 0
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and v.Transparency >= 0.9 and v.CanCollide then
+            v.CanCollide = false
+            count = count + 1
+        end
+    end
+    print("✅ Đã xóa " .. count .. " tường tàng hình.")
+end)
+createMobileBtn("KILL", UDim2.new(0,65,0,80), Color3.fromRGB(100, 100, 100), function()
+    for _, c in pairs(connections) do c:Disconnect() end
+    screenGui:Destroy()
+    print("🔴 SCRIPT KILLED!")
+end)
+
+-- --- LOGIC CHÍNH ---
+
 local function getTargetBall()
     local success, result = pcall(function()
         local p = string.split(customBallPath, ".")
@@ -96,16 +179,24 @@ local function getTargetBall()
     return success and result or nil
 end
 
--- --- VÒNG LẶP CHÍNH (Anti-Lag & Performance) ---
 connections.heartbeat = RunService.Heartbeat:Connect(function()
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChild("Humanoid")
 
     if hrp and hum then
-        -- 1. Anti-Momentum (S / STOP)
-        if (stopMomentumActive or UserInputService:IsKeyDown(Enum.KeyCode.S)) and hum.FloorMaterial == Enum.Material.Air then
-            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        -- 1. Anti-Momentum TỰ ĐỘNG khi đi lùi/đứng yên trên không
+        if hum.FloorMaterial == Enum.Material.Air then
+            local moveDir = hum.MoveDirection
+            local lookDir = hrp.CFrame.LookVector
+            -- Chế độ lùi (S): moveDir và lookDir ngược chiều
+            local isMovingBack = moveDir:Dot(lookDir) < -0.1
+            -- Chế độ đứng yên: moveDir gần bằng 0
+            local isStandingStill = moveDir.Magnitude < 0.1
+
+            if isMovingBack or isStandingStill then
+                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+            end
         end
 
         -- 2. Tốc độ CFrame (Speed)
@@ -116,8 +207,7 @@ connections.heartbeat = RunService.Heartbeat:Connect(function()
         -- 3. Hút bóng (Magnetic)
         local ball = getTargetBall()
         if ball and ball:IsA("BasePart") then
-            local dist = (hrp.Position - ball.Position).Magnitude
-            if dist < magnetRange then
+            if (hrp.Position - ball.Position).Magnitude < magnetRange then
                 ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * CFrame.new(0, 2.5, -3.5), 0.35)
                 local v = ball:FindFirstChild("V") or Instance.new("SelectionSphere", ball)
                 v.Name = "V"; v.Transparency = 0.8; v.Color3 = Color3.new(1,1,1); v.Adornee = ball
@@ -140,19 +230,10 @@ connections.heartbeat = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- --- ĐIỀU KHIỂN PHÍM BẤM ---
 connections.input = UserInputService.InputBegan:Connect(function(input, proc)
     if proc then return end
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     local hum = player.Character and player.Character:FindFirstChild("Humanoid")
-
-    if input.KeyCode == Enum.KeyCode.J then
-        for _, c in pairs(connections) do c:Disconnect() end
-        ContextActionService:UnbindAction("StopMomentum")
-        ContextActionService:UnbindAction("ClearWalls")
-        screenGui:Destroy()
-        return
-    end
 
     -- Nhảy & Double Jump
     if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
@@ -161,20 +242,6 @@ connections.input = UserInputService.InputBegan:Connect(function(input, proc)
             hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
         end
     end
-
-    -- Hotkeys
-    if input.KeyCode == Enum.KeyCode.F5 then targetJumpForce = targetJumpForce + 2
-    elseif input.KeyCode == Enum.KeyCode.F6 then targetJumpForce = math.max(0, targetJumpForce - 2)
-    elseif input.KeyCode == Enum.KeyCode.KeypadPlus then targetSpeedMult = targetSpeedMult + 0.02
-    elseif input.KeyCode == Enum.KeyCode.KeypadMinus then targetSpeedMult = math.max(0, targetSpeedMult - 0.02)
-    elseif input.KeyCode == Enum.KeyCode.F8 then
-        magnetRange = magnetRange + 10
-        if magnetRange > 150 then magnetRange = 10 end
-    end
-    
-    jumpLabel.Text = "Lực nhảy: " .. targetJumpForce
-    speedLabel.Text = "Tốc độ: " .. string.format("%.2f", targetSpeedMult)
-    magnetLabel.Text = "Hitbox: " .. magnetRange
 end)
 
-print("🚀 V18 Hybrid Universe Loaded!")
+print("🚀 V19 Mobile Tối Ưu Loaded!")
