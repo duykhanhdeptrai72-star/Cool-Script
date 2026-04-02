@@ -1,0 +1,225 @@
+-- ROBLOX MOBILE MENU - ULTIMATE VERSION
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZhiMobileMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local CurrentLang = "VN"
+local HoldingKeys = {}
+
+local LangTable = {
+    ["VN"] = {key = "Phím Bấm", set = "Cài Đặt", load = "Chạy Script", search = "Tìm phím...", back = "Quay lại", run = "Kích hoạt", lang = "Ngôn ngữ: Tiếng Việt"},
+    ["EN"] = {key = "Keybinds", set = "Settings", load = "Loadstring", search = "Search key...", back = "Back", run = "Execute", lang = "Language: English"}
+}
+
+-- 1. Nút Răng Cưa (Giữa trên cùng)
+local OpenBtn = Instance.new("ImageButton")
+OpenBtn.Size = UDim2.new(0, 35, 0, 35)
+OpenBtn.Position = UDim2.new(0.5, -17, 0, 15)
+OpenBtn.BackgroundTransparency = 1
+OpenBtn.Image = "rbxassetid://7072706663"
+OpenBtn.Parent = ScreenGui
+
+-- 2. Menu Chính (Góc phải)
+local MainMenu = Instance.new("Frame")
+MainMenu.Size = UDim2.new(0, 220, 0, 200)
+MainMenu.Position = UDim2.new(1, -240, 0, 70)
+MainMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainMenu.Visible = false
+MainMenu.Active = true
+MainMenu.Parent = ScreenGui
+local UICornerMain = Instance.new("UICorner") ; UICornerMain.CornerRadius = UDim.new(0, 10) ; UICornerMain.Parent = MainMenu
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = MainMenu ; UIList.Padding = UDim.new(0, 10) ; UIList.HorizontalAlignment = "Center" ; UIList.VerticalAlignment = "Center"
+
+-- Các khung con
+local BindFrame = Instance.new("Frame")
+local SetFrame = Instance.new("Frame")
+local LoadFrame = Instance.new("Frame")
+
+local frames = {BindFrame, SetFrame, LoadFrame}
+for _, f in pairs(frames) do
+    f.Size = UDim2.new(0, 300, 0, 400)
+    f.Position = UDim2.new(0.5, -150, 0.3, 0)
+    f.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    f.Visible = false
+    f.Active = true
+    f.Parent = ScreenGui
+    local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0, 10) ; c.Parent = f
+end
+
+-- Hàm tạo nút Menu chính
+local function createMenuBtn(txtKey, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 45)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Text = LangTable[CurrentLang][txtKey]
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 18
+    btn.LayoutOrder = order
+    btn.Parent = MainMenu
+    local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0, 8) ; c.Parent = btn
+    return btn
+end
+
+local B1 = createMenuBtn("key", 1)
+local B2 = createMenuBtn("set", 2)
+local B3 = createMenuBtn("load", 3)
+
+-- === LOGIC TOGGLE THÔNG MINH (Bấm lại để tắt) ===
+local function toggleSubMenu(frame)
+    if frame.Visible then
+        frame.Visible = false
+    else
+        for _, f in pairs(frames) do f.Visible = false end -- Tắt các cái khác
+        frame.Visible = true
+    end
+end
+
+B1.MouseButton1Click:Connect(function() toggleSubMenu(BindFrame) end)
+B2.MouseButton1Click:Connect(function() toggleSubMenu(SetFrame) end)
+B3.MouseButton1Click:Connect(function() toggleSubMenu(LoadFrame) end)
+
+-- === PHẦN LOADSTRING ===
+local LoadInput = Instance.new("TextBox")
+LoadInput.Size = UDim2.new(0.9, 0, 0, 250)
+LoadInput.Position = UDim2.new(0.05, 0, 0, 20)
+LoadInput.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+LoadInput.TextColor3 = Color3.new(1, 1, 1)
+LoadInput.ClearTextOnFocus = false
+LoadInput.MultiLine = true
+LoadInput.Text = ""
+LoadInput.PlaceholderText = "Dán script vào đây..."
+LoadInput.Parent = LoadFrame
+
+local RunBtn = Instance.new("TextButton")
+RunBtn.Size = UDim2.new(0.9, 0, 0, 40)
+RunBtn.Position = UDim2.new(0.05, 0, 0, 280)
+RunBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+RunBtn.Text = "Execute"
+RunBtn.Parent = LoadFrame
+RunBtn.MouseButton1Click:Connect(function() pcall(function() loadstring(LoadInput.Text)() end) end)
+
+-- === PHẦN KEYBIND (FULL + SEARCH + SYMBOLS) ===
+local SearchBox = Instance.new("TextBox")
+SearchBox.Size = UDim2.new(0.9, 0, 0, 35)
+SearchBox.Position = UDim2.new(0.05, 0, 0, 10)
+SearchBox.PlaceholderText = "Search..."
+SearchBox.BackgroundColor3 = Color3.fromRGB(25,25,25)
+SearchBox.TextColor3 = Color3.new(1,1,1)
+SearchBox.Parent = BindFrame
+
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(0.9, 0, 1, -100)
+Scroll.Position = UDim2.new(0.05, 0, 0, 55)
+Scroll.BackgroundTransparency = 1
+Scroll.CanvasSize = UDim2.new(0,0,30,0) -- Canvas lớn cho full phím
+Scroll.Parent = BindFrame
+local SL = Instance.new("UIListLayout") ; SL.Parent = Scroll ; SL.Padding = UDim.new(0,3)
+
+-- Danh sách ký tự tắt ưu tiên
+local Symbols = {
+    ["/ (Slash)"] = Enum.KeyCode.Slash,
+    [", (Comma)"] = Enum.KeyCode.Comma,
+    [". (Period)"] = Enum.KeyCode.Period,
+    ["; (Semicolon)"] = Enum.KeyCode.Semicolon,
+    ["[ (LeftBracket)"] = Enum.KeyCode.LeftBracket,
+    ["] (RightBracket)"] = Enum.KeyCode.RightBracket,
+    ["' (Quote)"] = Enum.KeyCode.Quote,
+    ["- (Minus)"] = Enum.KeyCode.Minus,
+    ["= (Equals)"] = Enum.KeyCode.Equals
+}
+
+local function addKey(name, code)
+    local k = Instance.new("TextButton")
+    k.Size = UDim2.new(1, -10, 0, 30)
+    k.Text = name
+    k.Name = name:lower()
+    k.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    k.TextColor3 = Color3.new(1, 1, 1)
+    k.Parent = Scroll
+    local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0, 5) ; c.Parent = k
+    
+    k.MouseButton1Click:Connect(function()
+        if HoldingKeys[code] then
+            HoldingKeys[code] = false
+            k.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            VirtualInputManager:SendKeyEvent(false, code, false, game)
+        else
+            HoldingKeys[code] = true
+            k.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+            task.spawn(function()
+                while HoldingKeys[code] do
+                    VirtualInputManager:SendKeyEvent(true, code, false, game)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end)
+end
+
+-- Load Full Keybinds
+for n, c in pairs(Symbols) do addKey(n, c) end
+for _, key in ipairs(Enum.KeyCode:GetEnumItems()) do
+    if key.Name ~= "Unknown" and not string.find(key.Name, "Button") then
+        addKey(key.Name, key)
+    end
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local text = SearchBox.Text:lower()
+    for _, item in pairs(Scroll:GetChildren()) do
+        if item:IsA("TextButton") then
+            item.Visible = string.find(item.Name, text) ~= nil
+        end
+    end
+end)
+
+-- === CÀI ĐẶT ===
+local LangBtn = Instance.new("TextButton")
+LangBtn.Size = UDim2.new(0.9, 0, 0, 50)
+LangBtn.Position = UDim2.new(0.05, 0, 0, 50)
+LangBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+LangBtn.Text = LangTable[CurrentLang].lang
+LangBtn.Parent = SetFrame
+LangBtn.MouseButton1Click:Connect(function()
+    CurrentLang = (CurrentLang == "VN") and "EN" or "VN"
+    LangBtn.Text = LangTable[CurrentLang].lang
+    B1.Text = LangTable[CurrentLang].key
+    B2.Text = LangTable[CurrentLang].set
+    B3.Text = LangTable[CurrentLang].load
+end)
+
+-- Back buttons (Giữ lại cho chắc chắn)
+for _, f in pairs(frames) do
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 35) ; b.Position = UDim2.new(0, 0, 1, -35)
+    b.Text = "Back" ; b.BackgroundColor3 = Color3.fromRGB(120, 30, 30) ; b.Parent = f
+    b.MouseButton1Click:Connect(function() f.Visible = false ; MainMenu.Visible = true end)
+end
+
+OpenBtn.MouseButton1Click:Connect(function() MainMenu.Visible = not MainMenu.Visible end)
+
+-- Draggable Logic
+local function drag(obj)
+    local dragging, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true ; dragStart = input.Position ; startPos = obj.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - dragStart
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    obj.InputEnded:Connect(function(input) dragging = false end)
+end
+drag(MainMenu) ; drag(BindFrame) ; drag(SetFrame) ; drag(LoadFrame)
