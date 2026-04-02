@@ -15,15 +15,15 @@ local connections = {}
 
 -- --- GIAO DIỆN (GUI) ---
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Volleyball_MobileFix_V17"
+screenGui.Name = "Volleyball_Universe_V18"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 180, 0, 160)
-mainFrame.Position = UDim2.new(0, 10, 0.15, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 0.5
+mainFrame.Size = UDim2.new(0, 200, 0, 220)
+mainFrame.Position = UDim2.new(0, 15, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+mainFrame.BackgroundTransparency = 0.4
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame)
 
@@ -40,90 +40,141 @@ local function createLabel(text, pos, color)
     return lbl
 end
 
-local jumpLabel = createLabel("Jump: " .. targetJumpForce, UDim2.new(0, 10, 0, 10))
-local speedLabel = createLabel("Speed: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40))
+local jumpLabel = createLabel("Lực nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10))
+local speedLabel = createLabel("Tốc độ: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40))
+local magnetLabel = createLabel("Hitbox: " .. magnetRange, UDim2.new(0, 10, 0, 70), Color3.fromRGB(150, 200, 255))
+local heightLabel = createLabel("Độ cao: 0 Studs", UDim2.new(0, 10, 0, 100), Color3.fromRGB(0, 255, 150))
+
+-- Ô nhập Path (Quan trọng cho Universe)
 local pathBox = Instance.new("TextBox")
-pathBox.Size = UDim2.new(1, -20, 0, 30)
-pathBox.Position = UDim2.new(0, 10, 0, 75)
-pathBox.PlaceholderText = "Dán Path bóng..."
+pathBox.Size = UDim2.new(1, -20, 0, 35)
+pathBox.Position = UDim2.new(0, 10, 0, 135)
+pathBox.PlaceholderText = "Nhập Path (Dùng Dex)..."
 pathBox.Text = customBallPath
-pathBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+pathBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 pathBox.TextColor3 = Color3.new(1,1,1)
+pathBox.TextSize = 10
 pathBox.Parent = mainFrame
-pathBox.FocusLost:Connect(function() customBallPath = pathBox.Text end)
+Instance.new("UICorner", pathBox)
 
--- --- CHỨC NĂNG MOBILE (NÚT TRÒN RIÊNG BIỆT) ---
+pathBox.FocusLost:Connect(function(enter)
+    if enter then customBallPath = pathBox.Text end
+end)
 
--- 1. Nút Dừng Quán Tính (STOP)
-ContextActionService:BindAction("StopMomentum", function(actionName, inputState)
-    if inputState == Enum.UserInputState.Begin then
-        stopMomentumActive = not stopMomentumActive
-        warn("Anti-Momentum: " .. tostring(stopMomentumActive))
+-- --- MOBILE ACTION BUTTONS ---
+local function handleMobileAction(name, state)
+    if state == Enum.UserInputState.Begin then
+        if name == "StopMomentum" then
+            stopMomentumActive = not stopMomentumActive
+        elseif name == "ClearWalls" then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") and v.Transparency >= 0.9 and v.CanCollide then v.CanCollide = false end
+            end
+        end
     end
-end, true, Enum.KeyCode.S)
+end
+
+ContextActionService:BindAction("StopMomentum", handleMobileAction, true, Enum.KeyCode.S)
 ContextActionService:SetTitle("StopMomentum", "STOP")
 ContextActionService:SetPosition("StopMomentum", UDim2.new(0.5, 70, 0, -70))
 
--- 2. Nút Xóa Tường (WALL)
-ContextActionService:BindAction("ClearWalls", function(actionName, inputState)
-    if inputState == Enum.UserInputState.Begin then
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") and v.Transparency >= 0.9 then v.CanCollide = false end
-        end
-    end
-end, true, Enum.KeyCode.L)
+ContextActionService:BindAction("ClearWalls", handleMobileAction, true, Enum.KeyCode.L)
 ContextActionService:SetTitle("ClearWalls", "WALL")
 ContextActionService:SetPosition("ClearWalls", UDim2.new(0.5, 70, 0, -140))
 
--- --- LOGIC CHÍNH ---
+-- --- LOGIC XỬ LÝ QUẢ BÓNG ---
+local function getTargetBall()
+    local success, result = pcall(function()
+        local p = string.split(customBallPath, ".")
+        local cur = game
+        for i=1,#p do
+            cur = cur:FindFirstChild(p[i])
+            if not cur then return nil end
+        end
+        return cur
+    end)
+    return success and result or nil
+end
+
+-- --- VÒNG LẶP CHÍNH (Anti-Lag & Performance) ---
 connections.heartbeat = RunService.Heartbeat:Connect(function()
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChild("Humanoid")
 
     if hrp and hum then
-        -- Xử lý Momentum (Bấm S hoặc bật nút STOP)
+        -- 1. Anti-Momentum (S / STOP)
         if (stopMomentumActive or UserInputService:IsKeyDown(Enum.KeyCode.S)) and hum.FloorMaterial == Enum.Material.Air then
             hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
         end
 
-        -- Xử lý JumpPower & Speed
+        -- 2. Tốc độ CFrame (Speed)
         if hum.MoveDirection.Magnitude > 0 then
             hrp.CFrame = hrp.CFrame + (hum.MoveDirection * targetSpeedMult)
         end
         
-        -- Hút bóng từ Path
-        local success, ball = pcall(function()
-            local p = string.split(customBallPath, ".")
-            local cur = game
-            for i=1,#p do cur = cur:FindFirstChild(p[i]) end
-            return cur
-        end)
-
-        if success and ball and ball:IsA("BasePart") then
-            if (hrp.Position - ball.Position).Magnitude < magnetRange then
-                ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * CFrame.new(0, 2.6, -3.6), 0.3)
+        -- 3. Hút bóng (Magnetic)
+        local ball = getTargetBall()
+        if ball and ball:IsA("BasePart") then
+            local dist = (hrp.Position - ball.Position).Magnitude
+            if dist < magnetRange then
+                ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * CFrame.new(0, 2.5, -3.5), 0.35)
+                local v = ball:FindFirstChild("V") or Instance.new("SelectionSphere", ball)
+                v.Name = "V"; v.Transparency = 0.8; v.Color3 = Color3.new(1,1,1); v.Adornee = ball
             end
         end
 
-        -- Double Jump & Xoay Camera
+        -- 4. Double Jump & Xoay Camera
         if hum.FloorMaterial ~= Enum.Material.Air then
             hasDoubleJumped = false
-        else
-            -- Tự động cho phép nhảy lần 2 khi nhấn Jump trên Mobile
-            UserInputService.JumpRequest:Connect(function()
-                if not hasDoubleJumped and hum.FloorMaterial == Enum.Material.Air then
-                    hasDoubleJumped = true
-                    hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
-                end
-            end)
         end
-
-        if hasDoubleJumped then
+        
+        if hasDoubleJumped and hum.FloorMaterial == Enum.Material.Air then
             local look = camera.CFrame.LookVector
             hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0), 0.2)
         end
+
+        -- 5. Cập nhật độ cao
+        local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -150, 0))
+        if ray then heightLabel.Text = "Độ cao: " .. math.floor(hrp.Position.Y - ray.Position.Y - 3) .. " Studs" end
     end
 end)
 
-print("✅ V17 Mobile Fixed Loaded! Hãy kiểm tra các nút STOP/WALL hiện ra cạnh nút nhảy.")
+-- --- ĐIỀU KHIỂN PHÍM BẤM ---
+connections.input = UserInputService.InputBegan:Connect(function(input, proc)
+    if proc then return end
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+
+    if input.KeyCode == Enum.KeyCode.J then
+        for _, c in pairs(connections) do c:Disconnect() end
+        ContextActionService:UnbindAction("StopMomentum")
+        ContextActionService:UnbindAction("ClearWalls")
+        screenGui:Destroy()
+        return
+    end
+
+    -- Nhảy & Double Jump
+    if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+        if hum and hum.FloorMaterial == Enum.Material.Air and not hasDoubleJumped then
+            hasDoubleJumped = true
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
+        end
+    end
+
+    -- Hotkeys
+    if input.KeyCode == Enum.KeyCode.F5 then targetJumpForce = targetJumpForce + 2
+    elseif input.KeyCode == Enum.KeyCode.F6 then targetJumpForce = math.max(0, targetJumpForce - 2)
+    elseif input.KeyCode == Enum.KeyCode.KeypadPlus then targetSpeedMult = targetSpeedMult + 0.02
+    elseif input.KeyCode == Enum.KeyCode.KeypadMinus then targetSpeedMult = math.max(0, targetSpeedMult - 0.02)
+    elseif input.KeyCode == Enum.KeyCode.F8 then
+        magnetRange = magnetRange + 10
+        if magnetRange > 150 then magnetRange = 10 end
+    end
+    
+    jumpLabel.Text = "Lực nhảy: " .. targetJumpForce
+    speedLabel.Text = "Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+    magnetLabel.Text = "Hitbox: " .. magnetRange
+end)
+
+print("🚀 V18 Hybrid Universe Loaded!")
