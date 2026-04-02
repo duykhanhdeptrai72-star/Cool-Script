@@ -1,10 +1,9 @@
--- [[ KHỞI TẠO HỆ THỐNG SERVICES ]] --
+-- [[ KHOI TAO HE THONG ]] --
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
--- [[ BIẾN TOÀN CỤC ]] --
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local targetJumpForce = 38 
@@ -13,27 +12,26 @@ local magnetRange = 25
 local customBallPath = "Workspace.Ball.BallPart"
 local hasDoubleJumped = false
 local isRunning = true
-local isLocked = true -- Mặc định là KHÓA (LOCKED)
 local connections = {}
 
--- --- HỆ THỐNG GIAO DIỆN (GUI) ---
+-- --- GIAO DIEN NGUOI DUNG (GUI) ---
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Volleyball_Ultimate_V23"
-screenGui.ResetOnSpawn = false -- Chết không mất Menu
+screenGui.Name = "Volleyball_Nishikawazhj_V24"
+screenGui.ResetOnSpawn = false 
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- 1. NÚT MỞ/ẨN MENU (Góc trên bên trái)
-local toggleGuiBtn = Instance.new("TextButton")
-toggleGuiBtn.Size = UDim2.new(0, 90, 0, 35)
-toggleGuiBtn.Position = UDim2.new(0, 15, 0.1, 0)
-toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-toggleGuiBtn.Text = "MENU: HIDE"
-toggleGuiBtn.TextColor3 = Color3.new(1,1,1)
-toggleGuiBtn.Font = Enum.Font.GothamBold
-toggleGuiBtn.Parent = screenGui
-Instance.new("UICorner", toggleGuiBtn)
+-- 1. Nut Menu Chinh (An/Hien)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 90, 0, 35)
+toggleBtn.Position = UDim2.new(0, 15, 0.1, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleBtn.Text = "MENU: ON"
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Parent = screenGui
+Instance.new("UICorner", toggleBtn)
 
--- 2. KHUNG CHỨA THÔNG SỐ (Main Frame)
+-- 2. Bang Thong So
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 210, 0, 260)
 mainFrame.Position = UDim2.new(0, 15, 0.16, 0)
@@ -43,26 +41,26 @@ mainFrame.Visible = true
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame)
 
--- 3. CỤM NÚT BẤM MOBILE (Cụm 6 nút + 1 nút Lock)
+-- 3. Cum Nut Bam Mobile (Grid 2x3)
 local btnContainer = Instance.new("Frame")
-btnContainer.Size = UDim2.new(0, 140, 0, 180)
-btnContainer.Position = UDim2.new(1, -150, 0.32, 0) -- Vị trí cao, tránh nút kỹ năng
+btnContainer.Size = UDim2.new(0, 140, 0, 140)
+btnContainer.Position = UDim2.new(1, -150, 0.32, 0) -- Vi tri cao theo yeu cau
 btnContainer.BackgroundTransparency = 1
 btnContainer.Visible = true
 btnContainer.Parent = screenGui
 
--- Logic Ẩn/Hiện toàn bộ (Cả bảng và nút bấm)
-toggleGuiBtn.MouseButton1Click:Connect(function()
+-- Logic An/Hien (Bam la mat sach cho do vuong)
+toggleBtn.MouseButton1Click:Connect(function()
     local isVisible = mainFrame.Visible
     mainFrame.Visible = not isVisible
     btnContainer.Visible = not isVisible
-    toggleGuiBtn.Text = isVisible and "MENU: SHOW" or "MENU: HIDE"
+    toggleBtn.Text = isVisible and "MENU: OFF" or "MENU: ON"
 end)
 
--- --- CÁC NHÃN HIỂN THỊ THÔNG SỐ ---
+-- --- CAC NHAN THONG TIN ---
 local function createLabel(text, pos, color, name)
     local lbl = Instance.new("TextLabel")
-    lbl.Name = name or "Label"
+    lbl.Name = name or "InfoLabel"
     lbl.Size = UDim2.new(1, -20, 0, 25)
     lbl.Position = pos
     lbl.BackgroundTransparency = 1
@@ -75,16 +73,16 @@ local function createLabel(text, pos, color, name)
     return lbl
 end
 
-local jumpLabel = createLabel("➤ Lực nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10), nil, "JumpLabel")
-local speedLabel = createLabel("➤ Tốc độ: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40), nil, "SpeedLabel")
-local heightLabel = createLabel("➤ Độ cao: 0 Studs", UDim2.new(0, 10, 0, 70), Color3.fromRGB(0, 255, 150), "HeightLabel")
-createLabel("➤ Momentum: Auto (S lùi)", UDim2.new(0, 10, 0, 100), Color3.fromRGB(255, 255, 100))
+local jumpLbl = createLabel("➤ Nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10), nil, "JumpLabel")
+local speedLbl = createLabel("➤ Speed: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40), nil, "SpeedLabel")
+local heightLbl = createLabel("➤ Độ cao: 0 Studs", UDim2.new(0, 10, 0, 70), Color3.fromRGB(0, 255, 150), "HeightLabel")
+createLabel("➤ Momentum: S (Lùi)", UDim2.new(0, 10, 0, 100), Color3.fromRGB(255, 255, 100))
 
--- Ô nhập Path bóng
+-- Path Input
 local pathBox = Instance.new("TextBox")
 pathBox.Size = UDim2.new(1, -20, 0, 35)
 pathBox.Position = UDim2.new(0, 10, 0, 135)
-pathBox.PlaceholderText = "Nhập Path bóng..."
+pathBox.PlaceholderText = "Path bóng (Dex)..."
 pathBox.Text = customBallPath
 pathBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 pathBox.TextColor3 = Color3.new(1,1,1)
@@ -92,30 +90,7 @@ pathBox.Parent = mainFrame
 Instance.new("UICorner", pathBox)
 pathBox.FocusLost:Connect(function(enter) if enter then customBallPath = pathBox.Text end end)
 
--- --- HỆ THỐNG NÚT MOBILE CÓ KHÓA (SAFETY LOCK) ---
-
--- Nút LOCK/UNLOCK (Dùng để bảo vệ)
-local lockBtn = Instance.new("TextButton")
-lockBtn.Size = UDim2.new(0, 135, 0, 35)
-lockBtn.Position = UDim2.new(0, 0, 0, -40)
-lockBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-lockBtn.Text = "LOCKED (SAFETY)"
-lockBtn.TextColor3 = Color3.new(1,1,1)
-lockBtn.Font = Enum.Font.GothamBold
-lockBtn.Parent = btnContainer
-Instance.new("UICorner", lockBtn)
-
-lockBtn.MouseButton1Click:Connect(function()
-    isLocked = not isLocked
-    if isLocked then
-        lockBtn.Text = "LOCKED (SAFETY)"
-        lockBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-    else
-        lockBtn.Text = "UNLOCKED (READY)"
-        lockBtn.BackgroundColor3 = Color3.fromRGB(60, 255, 60)
-    end
-end)
-
+-- --- HE THONG NUT BAM DIEN THOAI (KHONG KHOA) ---
 local function createMobileBtn(txt, pos, color, func)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 65, 0, 42)
@@ -127,53 +102,47 @@ local function createMobileBtn(txt, pos, color, func)
     b.Parent = btnContainer
     Instance.new("UICorner", b)
     
+    -- Hieu ung bam nut muot ma
     b.MouseButton1Click:Connect(function()
-        -- KIỂM TRA KHÓA TRƯỚC KHI CHẠY HÀM
-        if not isLocked then
-            func()
-        else
-            -- Nếu đang khóa, chỉ rung nhẹ để báo hiệu, KHÔNG thực hiện hành động
-            local tween = TweenService:Create(b, TweenInfo.new(0.05, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, 0, true), {Rotation = 5})
-            tween:Play()
-        end
+        func()
+        local tween = TweenService:Create(b, TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, 0, true), {BackgroundTransparency = 0.5})
+        tween:Play()
     end)
 end
 
--- Hàng 1: Tốc độ
-createMobileBtn("SPD +", UDim2.new(0,0,0,0), Color3.fromRGB(50, 180, 50), function() 
+-- Hang 1
+createMobileBtn("SPD +", UDim2.new(0, 0, 0, 0), Color3.fromRGB(0, 180, 0), function() 
     targetSpeedMult = targetSpeedMult + 0.02 
-    speedLabel.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+    speedLbl.Text = "➤ Speed: " .. string.format("%.2f", targetSpeedMult)
 end)
-createMobileBtn("SPD -", UDim2.new(0,70,0,0), Color3.fromRGB(180, 50, 50), function() 
+createMobileBtn("SPD -", UDim2.new(0, 70, 0, 0), Color3.fromRGB(180, 0, 0), function() 
     targetSpeedMult = math.max(0, targetSpeedMult - 0.02) 
-    speedLabel.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+    speedLbl.Text = "➤ Speed: " .. string.format("%.2f", targetSpeedMult)
 end)
 
--- Hàng 2: Lực nhảy
-createMobileBtn("JMP +", UDim2.new(0,0,0,47), Color3.fromRGB(50, 180, 50), function() 
+-- Hang 2
+createMobileBtn("JMP +", UDim2.new(0, 0, 0, 47), Color3.fromRGB(0, 180, 0), function() 
     targetJumpForce = targetJumpForce + 2 
-    jumpLabel.Text = "➤ Lực nhảy: " .. targetJumpForce
+    jumpLbl.Text = "➤ Nhảy: " .. targetJumpForce
 end)
-createMobileBtn("JMP -", UDim2.new(0,70,0,47), Color3.fromRGB(180, 50, 50), function() 
+createMobileBtn("JMP -", UDim2.new(0, 70, 0, 47), Color3.fromRGB(180, 0, 0), function() 
     targetJumpForce = math.max(0, targetJumpForce - 2) 
-    jumpLabel.Text = "➤ Lực nhảy: " .. targetJumpForce
+    jumpLbl.Text = "➤ Nhảy: " .. targetJumpForce
 end)
 
--- Hàng 3: Tiện ích (Bảo vệ tuyệt đối)
-createMobileBtn("WALL", UDim2.new(0,0,0,94), Color3.fromRGB(0, 140, 255), function() 
+-- Hang 3
+createMobileBtn("WALL", UDim2.new(0, 0, 0, 94), Color3.fromRGB(0, 140, 255), function() 
     for _,v in pairs(workspace:GetDescendants()) do 
         if v:IsA("BasePart") and v.Transparency >= 0.9 then v.CanCollide = false end 
     end 
 end)
-
-createMobileBtn("KILL", UDim2.new(0,70,0,94), Color3.fromRGB(80, 80, 80), function() 
-    -- Nút KILL giờ đây chỉ hoạt động khi UNLOCKED
+createMobileBtn("KILL", UDim2.new(0, 70, 0, 94), Color3.fromRGB(70, 70, 70), function() 
     isRunning = false
     for _,c in pairs(connections) do c:Disconnect() end
     screenGui:Destroy()
 end)
 
--- --- LOGIC XỬ LÝ VẬT LÝ ---
+-- --- LOGIC CORE (VAT LY & DIEU KHIEN) ---
 
 local function getBall()
     local success, res = pcall(function()
@@ -185,34 +154,35 @@ local function getBall()
     return success and res or nil
 end
 
-connections.heartbeat = RunService.Heartbeat:Connect(function()
+connections.main = RunService.Heartbeat:Connect(function()
     if not isRunning then return end
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChild("Humanoid")
 
     if hrp and hum then
-        -- 1. Momentum thông minh (Chỉ khi chủ động đi lùi)
+        -- 1. Momentum (Chi khi di lui)
         if hum.FloorMaterial == Enum.Material.Air then
-            local isMovingBack = hum.MoveDirection:Dot(hrp.CFrame.LookVector) < -0.25
+            local isMovingBack = hum.MoveDirection:Dot(hrp.CFrame.LookVector) < -0.2
             if isMovingBack or UserInputService:IsKeyDown(Enum.KeyCode.S) then
                 hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
             end
         end
 
-        -- 2. Tốc độ CFrame
+        -- 2. Speed CFrame (Khong phu thuoc toc do game)
         if hum.MoveDirection.Magnitude > 0 then
             hrp.CFrame = hrp.CFrame + (hum.MoveDirection * targetSpeedMult)
         end
 
-        -- 3. Xoay Camera khi nhảy
+        -- 3. Xoay theo Camera (Double Jump Mode)
         if hasDoubleJumped and hum.FloorMaterial == Enum.Material.Air then
             local look = camera.CFrame.LookVector
             hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0), 0.2)
         end
+        
         if hum.FloorMaterial ~= Enum.Material.Air then hasDoubleJumped = false end
 
-        -- 4. Hút bóng Universe
+        -- 4. Hut bong (Magnet)
         local ball = getBall()
         if ball and ball:IsA("BasePart") then
             if (hrp.Position - ball.Position).Magnitude < magnetRange then
@@ -222,21 +192,24 @@ connections.heartbeat = RunService.Heartbeat:Connect(function()
             end
         end
         
-        -- Cập nhật độ cao chính xác
+        -- 5. Cap nhat do cao Studs
         local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -100, 0))
-        if ray then heightLabel.Text = "➤ Độ cao: " .. math.floor(hrp.Position.Y - ray.Position.Y - 3) .. " Studs" end
+        if ray then heightLbl.Text = "➤ Độ cao: " .. math.floor(hrp.Position.Y - ray.Position.Y - 3) .. " Studs" end
     end
 end)
 
--- Fix Double Jump cho Mobile
+-- --- FIX JUMP HOAT DONG 100% ---
 connections.jump = UserInputService.JumpRequest:Connect(function()
     local char = player.Character
     local hum = char and char:FindFirstChild("Humanoid")
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    -- Kiem tra dieu kien de Double Jump (Nhay lan 2)
     if hum and hrp and hum.FloorMaterial == Enum.Material.Air and not hasDoubleJumped then
         hasDoubleJumped = true
+        -- Thiet lap van toc nhay moi
         hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
     end
 end)
 
-warn("Nishikawazhj - V23 ULTIMATE LOADED (SAFETY MODE ON)")
+warn("Nishikawazhj - V24 Fix Hoan Toan - Da San Sang!")
