@@ -1,4 +1,4 @@
--- [[ KHOI TAO DICH VU ]] --
+-- [[ KHOI TAO DICH VU HE THONG ]] --
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -6,35 +6,36 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-local targetJumpForce = 38 -- Mac dinh 38 theo yeu cau
-local targetSpeedMult = 0 -- Mac dinh 0 theo yeu cau
+local targetJumpForce = 38 
+local targetSpeedMult = 0 
 local magnetRange = 25 
 local customBallPath = "Workspace.Ball.BallPart"
 local hasDoubleJumped = false
 local isRunning = true
+local isLocked = true -- Mac dinh la KHOA nut de tranh bam nham
 local connections = {}
 
--- --- HE THONG GIAO DIEN (GUI) ---
+-- --- HE THONG GIAO DIEN CHINH (GUI) ---
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Volleyball_Nishikawazhj_V21"
-screenGui.ResetOnSpawn = false -- Chet khong mat Menu
+screenGui.Name = "Volleyball_Nishikawazhj_V22"
+screenGui.ResetOnSpawn = false 
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Nut Mo Menu Nho Gon
+-- Nut Mo Menu (Fixed Position)
 local openBtn = Instance.new("TextButton")
-openBtn.Size = UDim2.new(0, 70, 0, 30)
-openBtn.Position = UDim2.new(0, 15, 0.15, 0)
-openBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-openBtn.Text = "MENU [ON]"
+openBtn.Size = UDim2.new(0, 80, 0, 30)
+openBtn.Position = UDim2.new(0, 15, 0.12, 0)
+openBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+openBtn.Text = "MENU: ON"
 openBtn.TextColor3 = Color3.new(1,1,1)
 openBtn.Font = Enum.Font.GothamBold
 openBtn.Parent = screenGui
-Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", openBtn)
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 210, 0, 260)
-mainFrame.Position = UDim2.new(0, 15, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.Position = UDim2.new(0, 15, 0.18, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 mainFrame.BackgroundTransparency = 0.3
 mainFrame.Visible = true
 mainFrame.Parent = screenGui
@@ -42,7 +43,7 @@ Instance.new("UICorner", mainFrame)
 
 openBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
-    openBtn.Text = mainFrame.Visible and "MENU [ON]" or "MENU [OFF]"
+    openBtn.Text = mainFrame.Visible and "MENU: ON" or "MENU: OFF"
 end)
 
 local function createLabel(text, pos, color)
@@ -59,36 +60,53 @@ local function createLabel(text, pos, color)
     return lbl
 end
 
-local jumpLabel = createLabel("➤ Lực nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10))
-local speedLabel = createLabel("➤ Tốc độ: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40))
+createLabel("➤ Lực nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10)).Name = "JumpLbl"
+createLabel("➤ Tốc độ: " .. targetSpeedMult, UDim2.new(0, 10, 0, 40)).Name = "SpeedLbl"
 local heightLabel = createLabel("➤ Độ cao: 0 Studs", UDim2.new(0, 10, 0, 70), Color3.fromRGB(0, 255, 150))
-local infoLabel = createLabel("➤ Momentum: Auto (S)", UDim2.new(0, 10, 0, 100), Color3.fromRGB(255, 255, 100))
+createLabel("➤ Momentum: Auto (S lùi)", UDim2.new(0, 10, 0, 100), Color3.fromRGB(255, 255, 100))
 
--- O Nhap Path Universe
+-- O Nhap Path
 local pathBox = Instance.new("TextBox")
 pathBox.Size = UDim2.new(1, -20, 0, 35)
 pathBox.Position = UDim2.new(0, 10, 0, 135)
-pathBox.PlaceholderText = "Dán Path bóng vào đây..."
+pathBox.PlaceholderText = "Path bóng (Dex)..."
 pathBox.Text = customBallPath
 pathBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 pathBox.TextColor3 = Color3.new(1,1,1)
-pathBox.Font = Enum.Font.Code
-pathBox.TextSize = 10
 pathBox.Parent = mainFrame
 Instance.new("UICorner", pathBox)
+pathBox.FocusLost:Connect(function(enter) if enter then customBallPath = pathBox.Text end end)
 
-pathBox.FocusLost:Connect(function(enter)
-    if enter then customBallPath = pathBox.Text end
-end)
-
--- --- MOBILE BUTTONS (GRID LAYOUT NHU BLOX FRUIT) ---
+-- --- HE THONG NUT MOBILE (TANG VI TRI & CO KHOA) ---
 local btnContainer = Instance.new("Frame")
-btnContainer.Size = UDim2.new(0, 140, 0, 130)
-btnContainer.Position = UDim2.new(1, -150, 0.45, 0)
+btnContainer.Size = UDim2.new(0, 140, 0, 180) -- Tang kich thuoc khung chua
+btnContainer.Position = UDim2.new(1, -150, 0.35, 0) -- Day len cao hon (0.35 thay vi 0.45)
 btnContainer.BackgroundTransparency = 1
 btnContainer.Parent = screenGui
 
-local function createBtn(txt, pos, color, func)
+-- Nut Lock/Unlock (De bat tat cac nut con lai)
+local lockBtn = Instance.new("TextButton")
+lockBtn.Size = UDim2.new(0, 135, 0, 30)
+lockBtn.Position = UDim2.new(0, 0, 0, -35)
+lockBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+lockBtn.Text = "LOCKED (OFF)"
+lockBtn.TextColor3 = Color3.new(1,1,1)
+lockBtn.Font = Enum.Font.GothamBold
+lockBtn.Parent = btnContainer
+Instance.new("UICorner", lockBtn)
+
+lockBtn.MouseButton1Click:Connect(function()
+    isLocked = not isLocked
+    if isLocked then
+        lockBtn.Text = "LOCKED (OFF)"
+        lockBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    else
+        lockBtn.Text = "UNLOCKED (ON)"
+        lockBtn.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    end
+end)
+
+local function createMobileBtn(txt, pos, color, func)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0, 65, 0, 40)
     b.Position = pos
@@ -96,59 +114,55 @@ local function createBtn(txt, pos, color, func)
     b.Text = txt
     b.TextColor3 = Color3.new(1,1,1)
     b.Font = Enum.Font.GothamBold
-    b.TextSize = 12
     b.Parent = btnContainer
     Instance.new("UICorner", b)
     
-    -- Hieu ung bam nut
-    b.MouseButton1Down:Connect(function()
-        TweenService:Create(b, TweenInfo.new(0.1), {BackgroundTransparency = 0.5}):Play()
+    b.MouseButton1Click:Connect(function()
+        if not isLocked then
+            func()
+        else
+            -- Hieu ung rung nhe khi nut dang khoa
+            local origPos = b.Position
+            b.Position = origPos + UDim2.new(0, 2, 0, 0)
+            task.wait(0.05)
+            b.Position = origPos
+        end
     end)
-    b.MouseButton1Up:Connect(function()
-        TweenService:Create(b, TweenInfo.new(0.1), {BackgroundTransparency = 0}):Play()
-    end)
-    
-    b.MouseButton1Click:Connect(func)
 end
 
--- Hang 1
-createBtn("SPD +", UDim2.new(0,0,0,0), Color3.fromRGB(40, 180, 40), function() 
+-- Hang 1: Speed
+createMobileBtn("SPD +", UDim2.new(0,0,0,0), Color3.fromRGB(50, 180, 50), function() 
     targetSpeedMult = targetSpeedMult + 0.02 
-    speedLabel.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+    mainFrame.SpeedLbl.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
 end)
-createBtn("SPD -", UDim2.new(0,70,0,0), Color3.fromRGB(180, 40, 40), function() 
+createMobileBtn("SPD -", UDim2.new(0,70,0,0), Color3.fromRGB(180, 50, 50), function() 
     targetSpeedMult = math.max(0, targetSpeedMult - 0.02) 
-    speedLabel.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
+    mainFrame.SpeedLbl.Text = "➤ Tốc độ: " .. string.format("%.2f", targetSpeedMult)
 end)
 
--- Hang 2
-createBtn("JMP +", UDim2.new(0,0,0,45), Color3.fromRGB(40, 180, 40), function() 
+-- Hang 2: Jump
+createMobileBtn("JMP +", UDim2.new(0,0,0,45), Color3.fromRGB(50, 180, 50), function() 
     targetJumpForce = targetJumpForce + 2 
-    jumpLabel.Text = "➤ Lực nhảy: " .. targetJumpForce
+    mainFrame.JumpLbl.Text = "➤ Lực nhảy: " .. targetJumpForce
 end)
-createBtn("JMP -", UDim2.new(0,70,0,45), Color3.fromRGB(180, 40, 40), function() 
+createMobileBtn("JMP -", UDim2.new(0,70,0,45), Color3.fromRGB(180, 50, 50), function() 
     targetJumpForce = math.max(0, targetJumpForce - 2) 
-    jumpLabel.Text = "➤ Lực nhảy: " .. targetJumpForce
+    mainFrame.JumpLbl.Text = "➤ Lực nhảy: " .. targetJumpForce
 end)
 
--- Hang 3
-createBtn("WALL", UDim2.new(0,0,0,90), Color3.fromRGB(0, 130, 255), function() 
-    local walls = 0
+-- Hang 3: Utility
+createMobileBtn("WALL", UDim2.new(0,0,0,90), Color3.fromRGB(0, 140, 255), function() 
     for _,v in pairs(workspace:GetDescendants()) do 
-        if v:IsA("BasePart") and v.Transparency >= 0.9 and v.CanCollide then 
-            v.CanCollide = false 
-            walls = walls + 1
-        end 
+        if v:IsA("BasePart") and v.Transparency >= 0.9 then v.CanCollide = false end 
     end 
-    warn("Da vo hieu hoa "..walls.." tuong tang hinh.")
 end)
-createBtn("KILL", UDim2.new(0,70,0,90), Color3.fromRGB(70, 70, 70), function() 
+createMobileBtn("KILL", UDim2.new(0,70,0,90), Color3.fromRGB(80, 80, 80), function() 
     isRunning = false
     for _,c in pairs(connections) do c:Disconnect() end
     screenGui:Destroy()
 end)
 
--- --- LOGIC XU LY QUY DAO VA VAT LY ---
+-- --- LOGIC CORE (MOMENTUM & BALL) ---
 local function getBall()
     local success, res = pcall(function()
         local parts = string.split(customBallPath, ".")
@@ -159,77 +173,58 @@ local function getBall()
     return success and res or nil
 end
 
-connections.main = RunService.Heartbeat:Connect(function()
+connections.heartbeat = RunService.Heartbeat:Connect(function()
     if not isRunning then return end
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChild("Humanoid")
 
     if hrp and hum then
-        -- 1. AUTOMATIC MOMENTUM (Chi khi di lui)
+        -- 1. Momentum chi khi di lui (S)
         if hum.FloorMaterial == Enum.Material.Air then
-            -- Kiem tra huong di chuyen so voi huong nhin
-            local dotProduct = hum.MoveDirection:Dot(hrp.CFrame.LookVector)
-            if dotProduct < -0.25 or UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                -- Triet tieu van toc ngang, giu nguyen van toc roi (Y)
+            local isMovingBack = hum.MoveDirection:Dot(hrp.CFrame.LookVector) < -0.25
+            if isMovingBack or UserInputService:IsKeyDown(Enum.KeyCode.S) then
                 hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
             end
         end
 
-        -- 2. SPEED CFRAME
+        -- 2. Speed CFrame
         if hum.MoveDirection.Magnitude > 0 then
             hrp.CFrame = hrp.CFrame + (hum.MoveDirection * targetSpeedMult)
         end
 
-        -- 3. SHIFTLOCK / DIRECTIONAL JUMP
+        -- 3. Xoay Camera khi Double Jump
         if hasDoubleJumped and hum.FloorMaterial == Enum.Material.Air then
             local look = camera.CFrame.LookVector
-            local targetRotation = CFrame.new(hrp.Position) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
-            hrp.CFrame = hrp.CFrame:Lerp(targetRotation, 0.2)
+            hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0), 0.2)
         end
-        
-        -- Reset Double Jump khi chạm đất
         if hum.FloorMaterial ~= Enum.Material.Air then hasDoubleJumped = false end
 
-        -- 4. MAGNET HITBOX (Universe Path)
+        -- 4. Magnet Hitbox
         local ball = getBall()
         if ball and ball:IsA("BasePart") then
-            local dist = (hrp.Position - ball.Position).Magnitude
-            if dist < magnetRange then
-                -- Hut bong ve phia truoc mat nhan vat
+            if (hrp.Position - ball.Position).Magnitude < magnetRange then
                 ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * CFrame.new(0, 2.5, -3.5), 0.3)
-                
-                -- Hieu ung Visual (Trang trong suot)
                 local v = ball:FindFirstChild("V") or Instance.new("SelectionSphere", ball)
-                v.Name = "V"
-                v.Transparency = 0.8
-                v.Color3 = Color3.new(1,1,1)
-                v.Adornee = ball
+                v.Name = "V"; v.Transparency = 0.8; v.Color3 = Color3.new(1,1,1); v.Adornee = ball
             end
         end
         
-        -- 5. CAP NHAT DO CAO LIEN TUC
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        rayParams.FilterDescendantsInstances = {char}
-        local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -100, 0), rayParams)
-        if ray then 
-            heightLabel.Text = "➤ Độ cao: " .. math.floor(hrp.Position.Y - ray.Position.Y - 3) .. " Studs" 
-        end
+        -- Cap nhat do cao
+        local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -100, 0))
+        if ray then heightLabel.Text = "➤ Độ cao: " .. math.floor(hrp.Position.Y - ray.Position.Y - 3) .. " Studs" end
     end
 end)
 
--- --- FIX LOI TU DONG NHAY (JUMP REQUEST) ---
+-- Fix Double Jump (Mobile & PC)
 connections.jump = UserInputService.JumpRequest:Connect(function()
     local char = player.Character
     local hum = char and char:FindFirstChild("Humanoid")
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    
     if hum and hrp and hum.FloorMaterial == Enum.Material.Air and not hasDoubleJumped then
-        -- Cho phep Double Jump
         hasDoubleJumped = true
         hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
     end
 end)
 
-warn("Nishikawazhj - V21 Multi-Platform Hybrid Loaded!")
+print("🚀 Nishikawazhj V22 - Locked Mode Enabled!")
