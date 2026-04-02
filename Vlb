@@ -1,0 +1,151 @@
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local targetJumpForce = 60 
+local targetSpeedMult = 0.12 
+local magnetRange = 25 
+local customBallPath = "Workspace.Ball.BallPart" -- Path mặc định
+local hasDoubleJumped = false
+local connections = {}
+
+-- --- GIAO DIỆN (GUI) ---
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Volleyball_Pro_V15"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 240)
+mainFrame.Position = UDim2.new(0, 20, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame)
+
+local function createLabel(text, pos, color)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 25)
+    lbl.Position = pos
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    lbl.TextSize = 13
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Text = text
+    lbl.Parent = mainFrame
+    return lbl
+end
+
+local jumpLabel = createLabel("Lực nhảy: " .. targetJumpForce, UDim2.new(0, 10, 0, 10))
+local speedLabel = createLabel("Speed (Num +/-): " .. targetSpeedMult, UDim2.new(0, 10, 0, 40))
+local magnetLabel = createLabel("Hitbox (F8): " .. magnetRange, UDim2.new(0, 10, 0, 70), Color3.fromRGB(200, 200, 255))
+local heightLabel = createLabel("Độ cao: 0 Studs", UDim2.new(0, 10, 0, 100), Color3.fromRGB(0, 255, 150))
+createLabel("S: Dừng quán tính | J: Kill", UDim2.new(0, 10, 0, 130), Color3.fromRGB(255, 255, 100))
+
+-- --- TEXT BOX ĐỔI PATH ---
+local pathBox = Instance.new("TextBox")
+pathBox.Size = UDim2.new(1, -20, 0, 30)
+pathBox.Position = UDim2.new(0, 10, 0, 160)
+pathBox.PlaceholderText = "Dán Path bóng vào đây..."
+pathBox.Text = customBallPath
+pathBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+pathBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+pathBox.TextSize = 10
+pathBox.ClearTextOnFocus = false
+pathBox.Parent = mainFrame
+Instance.new("UICorner", pathBox)
+
+pathBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        customBallPath = pathBox.Text
+        warn("🎯 Đã đổi Path bóng thành: " .. customBallPath)
+    end
+end)
+
+-- --- HÀM LẤY BÓNG TỪ PATH ---
+local function getBallFromPath()
+    local success, result = pcall(function()
+        local pathParts = string.split(customBallPath, ".")
+        local current = game
+        for i = 1, #pathParts do
+            current = current:FindFirstChild(pathParts[i])
+            if not current then break end
+        end
+        return current
+    end)
+    return success and result or nil
+end
+
+-- --- LOGIC HÚT BÓNG & DỪNG QUÁN TÍNH ---
+connections.heartbeat = RunService.Heartbeat:Connect(function()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    
+    if hrp and hum then
+        -- 1. Triệt tiêu quán tính khi nhấn S trên không
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) and hum.FloorMaterial == Enum.Material.Air then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        end
+
+        -- 2. Speed CFrame
+        if hum.MoveDirection.Magnitude > 0 then
+            hrp.CFrame = hrp.CFrame + (hum.MoveDirection * targetSpeedMult)
+        end
+
+        -- 3. Hút bóng từ Path Custom
+        local ball = getBallFromPath()
+        if ball and ball:IsA("BasePart") then
+            local dist = (hrp.Position - ball.Position).Magnitude
+            if dist < magnetRange then
+                ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * UDim2.new(0, 2.8, -3.8), 0.35) -- Chỉnh CFrame ảo
+                ball.CFrame = ball.CFrame:Lerp(hrp.CFrame * CFrame.new(0, 2.5, -3.5), 0.35)
+                local v = ball:FindFirstChild("V") or Instance.new("SelectionSphere", ball)
+                v.Transparency = 0.8; v.Color3 = Color3.fromRGB(255, 255, 255); v.Adornee = ball; v.Name = "V"
+            end
+        end
+
+        -- 4. Xoay hướng & Độ cao
+        if hasDoubleJumped and hum.FloorMaterial == Enum.Material.Air then
+            local camLook = camera.CFrame.LookVector
+            hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, math.atan2(-camLook.X, -camLook.Z), 0), 0.2)
+        end
+        if hum.FloorMaterial ~= Enum.Material.Air then hasDoubleJumped = false end
+    end
+end)
+
+-- --- ĐIỀU KHIỂN PHÍM ---
+connections.input = UserInputService.InputBegan:Connect(function(input, proc)
+    if proc then return end
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+
+    if input.KeyCode == Enum.KeyCode.J then
+        for _, c in pairs(connections) do c:Disconnect() end
+        screenGui:Destroy()
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.Space and hrp and hum then
+        if hum.FloorMaterial ~= Enum.Material.Air then
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce, hrp.AssemblyLinearVelocity.Z)
+        elseif not hasDoubleJumped then
+            hasDoubleJumped = true
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, targetJumpForce * 0.6, hrp.AssemblyLinearVelocity.Z)
+        end
+    end
+
+    -- Menu adjust
+    if input.KeyCode == Enum.KeyCode.F5 then targetJumpForce = targetJumpForce + 2
+    elseif input.KeyCode == Enum.KeyCode.F6 then targetJumpForce = math.max(0, targetJumpForce - 2)
+    elseif input.KeyCode == Enum.KeyCode.KeypadPlus then targetSpeedMult = targetSpeedMult + 0.02
+    elseif input.KeyCode == Enum.KeyCode.KeypadMinus then targetSpeedMult = math.max(0, targetSpeedMult - 0.02)
+    elseif input.KeyCode == Enum.KeyCode.F8 then
+        magnetRange = magnetRange + 10
+        if magnetRange > 150 then magnetRange = 10 end
+    end
+    jumpLabel.Text = "Lực nhảy: " .. targetJumpForce
+    speedLabel.Text = "Speed: " .. string.format("%.2f", targetSpeedMult)
+    magnetLabel.Text = "Hitbox (F8): " .. magnetRange
+end)
